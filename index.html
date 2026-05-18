@@ -535,6 +535,63 @@
   .corner-tl { top: -1px; left: -1px; border-top: 2px solid var(--cyan); border-left: 2px solid var(--cyan); }
   .corner-br { bottom: -1px; right: -1px; border-bottom: 2px solid var(--cyan); border-right: 2px solid var(--cyan); }
 
+  /* ─── IMAGE UPLOAD ─── */
+  .img-upload-zone {
+    border: 1px dashed var(--cyan-dim);
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--panel2);
+    position: relative;
+  }
+  .img-upload-zone:hover { border-color: var(--cyan); background: rgba(0,255,245,0.03); }
+  .img-upload-zone.dragover { border-color: var(--magenta); background: rgba(255,0,204,0.05); }
+  .img-upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .img-upload-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--cyan-dim);
+    pointer-events: none;
+  }
+  .img-preview-wrap { position: relative; display: inline-block; margin-top: 0.75rem; }
+  .img-preview { max-height: 140px; max-width: 100%; border: 1px solid var(--cyan-dim); display: block; }
+  .img-remove {
+    position: absolute; top: -8px; right: -8px;
+    background: var(--red); color: #fff;
+    border: none; font-size: 11px; width: 20px; height: 20px;
+    cursor: pointer; font-family: 'Share Tech Mono', monospace;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ─── CARD IMAGE ─── */
+  .act-img {
+    width: 100%; height: 140px; object-fit: cover;
+    border-bottom: 1px solid var(--border);
+    display: block; cursor: zoom-in;
+    margin-bottom: 0.8rem;
+    filter: saturate(0.7) contrast(1.1);
+    transition: filter 0.2s;
+  }
+  .act-img:hover { filter: saturate(1) contrast(1); }
+
+  /* ─── IMAGE LIGHTBOX ─── */
+  #lightbox {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.95);
+    z-index: 9000;
+    display: flex; align-items: center; justify-content: center;
+    cursor: zoom-out;
+  }
+  #lightbox.hidden { display: none; }
+  #lightbox img { max-width: 92vw; max-height: 88vh; border: 1px solid var(--cyan); }
+  #lightbox-close {
+    position: absolute; top: 1.5rem; right: 1.5rem;
+    font-family: 'Share Tech Mono', monospace; font-size: 13px;
+    color: var(--red); border: 1px solid var(--red);
+    background: none; padding: 4px 12px; cursor: pointer;
+  }
+
   @media (max-width: 600px) {
     .container { padding: 1rem; }
     .form-row { grid-template-columns: 1fr; }
@@ -704,6 +761,17 @@
           <label class="form-label">URL / Enlace (opcional)</label>
           <input type="url" class="cyber-input" id="new-url" placeholder="https://...">
         </div>
+        <div class="form-group">
+          <label class="form-label">Imagen de evidencia (opcional)</label>
+          <div class="img-upload-zone" id="new-drop-zone">
+            <input type="file" id="new-img-file" accept="image/*" onchange="handleImgSelect('new')">
+            <div class="img-upload-label" id="new-upload-label">▲ SUBIR IMAGEN — JPG, PNG, WEBP (máx 5MB)<br><span style="color:#334455;font-size:10px;">Haz clic o arrastra aquí</span></div>
+            <div class="img-preview-wrap" id="new-preview-wrap" style="display:none;">
+              <img id="new-img-preview" class="img-preview" src="" alt="Vista previa">
+              <button class="img-remove" onclick="removeImg('new')" title="Quitar imagen">✕</button>
+            </div>
+          </div>
+        </div>
         <button class="cyber-btn primary" onclick="addActivity()">Registrar Actividad</button>
       </div>
 
@@ -717,6 +785,12 @@
     </div>
 
   </div><!-- /container -->
+<!-- LIGHTBOX -->
+<div id="lightbox" class="hidden" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()">✕ CERRAR</button>
+  <img id="lightbox-img" src="" alt="Imagen ampliada">
+</div>
+
 </div><!-- /app -->
 
 <!-- LOGIN MODAL -->
@@ -783,6 +857,22 @@
       <label class="form-label">URL / Enlace</label>
       <input type="url" class="cyber-input" id="edit-url">
     </div>
+    <div class="form-group">
+      <label class="form-label">Imagen de evidencia</label>
+      <div class="img-upload-zone" id="edit-drop-zone">
+        <input type="file" id="edit-img-file" accept="image/*" onchange="handleImgSelect('edit')">
+        <div class="img-upload-label" id="edit-upload-label">▲ SUBIR NUEVA IMAGEN (reemplaza la actual)</div>
+        <div class="img-preview-wrap" id="edit-preview-wrap" style="display:none;">
+          <img id="edit-img-preview" class="img-preview" src="" alt="Vista previa">
+          <button class="img-remove" onclick="removeImg('edit')" title="Quitar imagen">✕</button>
+        </div>
+      </div>
+      <div id="edit-current-img-wrap" style="margin-top:0.5rem;display:none;">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#336688;margin-bottom:4px;">IMAGEN ACTUAL:</div>
+        <img id="edit-current-img" src="" style="max-height:80px;border:1px solid var(--border);">
+        <button class="btn-small btn-del" style="margin-left:8px;vertical-align:top;" onclick="clearCurrentImg()">Eliminar</button>
+      </div>
+    </div>
     <button class="cyber-btn primary" onclick="saveEdit()" style="margin-top:0.5rem;">Guardar Cambios</button>
   </div>
 </div>
@@ -793,8 +883,8 @@
 // ══════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://fnmtkxxpimlvyqtcgily.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rbzFrcJLnyuVk3smcJFW8g_6rl0eoUN';
-// Admin email — solo este email tendrá acceso de edición
 const ADMIN_EMAIL  = 'josepipucho08@gmail.com';
+const BUCKET       = 'actividades'; // nombre del bucket en Supabase Storage
 
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -802,6 +892,9 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 let allActivities = [];
 let introText = '';
+let newImgFile = null;
+let editImgFile = null;
+let editRemoveImg = false;
 
 // ══════════════════════════════════════════════════════
 // BOOT SEQUENCE
@@ -818,6 +911,7 @@ const bootLines = [
   { text: '[  OK  ] Autenticando certificados SSL/TLS...', cls: 'boot-ok' },
   { text: '[  OK  ] Conectando con nodo académico: MX-COL-ITESI...', cls: 'boot-ok' },
   { text: '[  OK  ] Base de datos en línea — Supabase v2.x', cls: 'boot-ok' },
+  { text: '[  OK  ] Módulo de almacenamiento de imágenes activo', cls: 'boot-ok' },
   { text: '[ WARN ] Modo de acceso: PÚBLICO — Registro requerido para editar', cls: 'boot-warn' },
   { text: '[  OK  ] Verificando integridad de archivos académicos...', cls: 'boot-ok' },
   { text: '[  OK  ] Módulo de portafolio cargado correctamente', cls: 'boot-ok' },
@@ -835,7 +929,6 @@ async function runBoot() {
   const log = document.getElementById('boot-log');
   const fill = document.getElementById('progress-fill');
   const label = document.getElementById('progress-label');
-
   for (let i = 0; i < bootLines.length; i++) {
     const { text, cls } = bootLines[i];
     const el = document.createElement('div');
@@ -849,19 +942,15 @@ async function runBoot() {
     await sleep(70 + Math.random() * 60);
     log.scrollTop = log.scrollHeight;
   }
-
   fill.style.width = '100%';
   label.textContent = '[ ACCESO CONCEDIDO ] — INICIANDO INTERFAZ...';
   await sleep(800);
-
   document.getElementById('loader').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
   initApp();
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// Click to skip boot
 document.getElementById('loader').addEventListener('click', () => {
   document.getElementById('loader').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
@@ -880,10 +969,11 @@ async function initApp() {
   });
   await loadIntro();
   await loadActivities();
-  // Set today as default date
   const today = new Date().toISOString().split('T')[0];
   const nd = document.getElementById('new-date');
   if (nd) nd.value = today;
+  setupDragDrop('new');
+  setupDragDrop('edit');
 }
 
 // ══════════════════════════════════════════════════════
@@ -898,9 +988,7 @@ function setUser(user) {
   document.getElementById('btn-logout').style.display = '';
   document.getElementById('btn-admin').style.display = isAdmin ? '' : 'none';
   document.getElementById('intro-admin-btn').style.display = isAdmin ? '' : 'none';
-  document.querySelectorAll('.card-actions').forEach(el => {
-    el.classList.toggle('hidden', !isAdmin);
-  });
+  document.querySelectorAll('.card-actions').forEach(el => el.classList.toggle('hidden', !isAdmin));
 }
 
 function clearUser() {
@@ -946,11 +1034,7 @@ async function doRegister() {
   showAlert('Registro exitoso. Verifica tu email si es necesario.', 'info');
 }
 
-async function logout() {
-  await sb.auth.signOut();
-  showAlert('Sesión cerrada.', 'info');
-}
-
+async function logout() { await sb.auth.signOut(); showAlert('Sesión cerrada.', 'info'); }
 function setLoginLoading(v) {
   document.getElementById('login-btn').disabled = v;
   document.getElementById('register-btn').disabled = v;
@@ -962,10 +1046,75 @@ function showLoginError(msg) {
 }
 
 // ══════════════════════════════════════════════════════
+// IMAGE HANDLING
+// ══════════════════════════════════════════════════════
+function setupDragDrop(prefix) {
+  const zone = document.getElementById(prefix + '-drop-zone');
+  if (!zone) return;
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) applyImgFile(prefix, file);
+  });
+}
+
+function handleImgSelect(prefix) {
+  const file = document.getElementById(prefix + '-img-file').files[0];
+  if (file) applyImgFile(prefix, file);
+}
+
+function applyImgFile(prefix, file) {
+  if (file.size > 5 * 1024 * 1024) { showAlert('La imagen no debe superar 5MB.', 'error'); return; }
+  if (prefix === 'new') newImgFile = file;
+  else { editImgFile = file; editRemoveImg = false; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById(prefix + '-img-preview').src = e.target.result;
+    document.getElementById(prefix + '-preview-wrap').style.display = 'inline-block';
+    document.getElementById(prefix + '-upload-label').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeImg(prefix) {
+  if (prefix === 'new') newImgFile = null;
+  else { editImgFile = null; }
+  document.getElementById(prefix + '-img-file').value = '';
+  document.getElementById(prefix + '-preview-wrap').style.display = 'none';
+  document.getElementById(prefix + '-upload-label').style.display = 'block';
+}
+
+function clearCurrentImg() {
+  editRemoveImg = true;
+  document.getElementById('edit-current-img-wrap').style.display = 'none';
+}
+
+async function uploadImage(file, actId) {
+  const ext = file.name.split('.').pop();
+  const path = `${actId}.${ext}`;
+  const { error } = await sb.storage.from(BUCKET).upload(path, file, { upsert: true });
+  if (error) throw error;
+  const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// ══════════════════════════════════════════════════════
+// LIGHTBOX
+// ══════════════════════════════════════════════════════
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.remove('hidden');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.add('hidden'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ══════════════════════════════════════════════════════
 // INTRO
 // ══════════════════════════════════════════════════════
 async function loadIntro() {
-  // Store intro in Supabase 'settings' table or localStorage fallback
   try {
     const { data } = await sb.from('settings').select('value').eq('key', 'intro').single();
     introText = data?.value || getDefaultIntro();
@@ -1019,8 +1168,7 @@ async function loadActivities() {
     const { data, error } = await sb.from('activities').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     allActivities = data || [];
-  } catch (e) {
-    // Fallback: try localStorage
+  } catch {
     allActivities = JSON.parse(localStorage.getItem('activities') || '[]');
   }
   renderAll();
@@ -1067,15 +1215,17 @@ function activityCard(a, adminMode) {
   const isAdmin = currentUser?.email === ADMIN_EMAIL;
   const showBtns = isAdmin && adminMode;
   const dateStr = a.date ? new Date(a.date + 'T12:00:00').toLocaleDateString('es-MX', {day:'2-digit',month:'short',year:'numeric'}) : '';
+  const imgHtml = a.image_url
+    ? `<img class="act-img" src="${escHtml(a.image_url)}" alt="Evidencia" loading="lazy" onclick="openLightbox('${escHtml(a.image_url)}')">`
+    : '';
   return `<div class="activity-card">
+    ${imgHtml}
     <div class="act-num">${escHtml(a.num || 'ID-???')}</div>
     <span class="act-type ${escHtml(a.type||'tarea')}">${(a.type||'tarea').toUpperCase()}</span>
     <div class="act-title">${escHtml(a.title||'Sin título')}</div>
     <div class="act-desc">${escHtml(a.description||'').substring(0,150)}${(a.description||'').length>150?'...':''}</div>
     ${a.url ? `<a href="${escHtml(a.url)}" target="_blank" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--cyan-dim);text-decoration:none;">▶ Ver enlace</a>` : ''}
-    <div class="act-meta">
-      <span>⏱ ${dateStr}</span>
-    </div>
+    <div class="act-meta"><span>⏱ ${dateStr}</span></div>
     ${showBtns ? `<div class="card-actions">
       <button class="btn-small btn-edit" onclick="openEditModal('${escHtml(a.id)}')">Editar</button>
       <button class="btn-small btn-del" onclick="deleteActivity('${escHtml(a.id)}')">Eliminar</button>
@@ -1092,12 +1242,20 @@ async function addActivity() {
     description: document.getElementById('new-desc').value.trim(),
     date: document.getElementById('new-date').value,
     url: document.getElementById('new-url').value.trim(),
+    image_url: null,
   };
   if (!act.title) { showAlert('El título es requerido.', 'error'); return; }
 
   try {
     const { data, error } = await sb.from('activities').insert([act]).select().single();
     if (error) throw error;
+    if (newImgFile) {
+      try {
+        act.image_url = await uploadImage(newImgFile, data.id);
+        await sb.from('activities').update({ image_url: act.image_url }).eq('id', data.id);
+        data.image_url = act.image_url;
+      } catch { showAlert('Actividad guardada, pero falló la imagen.', 'info'); }
+    }
     allActivities.unshift(data);
   } catch {
     act.id = Date.now().toString();
@@ -1107,6 +1265,8 @@ async function addActivity() {
 
   ['new-num','new-title','new-desc','new-url'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('new-type').value = 'practica';
+  removeImg('new');
+  newImgFile = null;
   renderAll();
   showAlert('Actividad registrada correctamente.', 'success');
 }
@@ -1125,6 +1285,8 @@ async function deleteActivity(id) {
 function openEditModal(id) {
   const a = allActivities.find(x => x.id == id);
   if (!a) return;
+  editImgFile = null;
+  editRemoveImg = false;
   document.getElementById('edit-id').value = a.id;
   document.getElementById('edit-title').value = a.title || '';
   document.getElementById('edit-type').value = a.type || 'tarea';
@@ -1132,6 +1294,14 @@ function openEditModal(id) {
   document.getElementById('edit-date').value = a.date || '';
   document.getElementById('edit-desc').value = a.description || '';
   document.getElementById('edit-url').value = a.url || '';
+  removeImg('edit');
+  const wrap = document.getElementById('edit-current-img-wrap');
+  if (a.image_url) {
+    document.getElementById('edit-current-img').src = a.image_url;
+    wrap.style.display = 'block';
+  } else {
+    wrap.style.display = 'none';
+  }
   document.getElementById('edit-modal').classList.remove('hidden');
 }
 
@@ -1147,12 +1317,23 @@ async function saveEdit() {
     description: document.getElementById('edit-desc').value.trim(),
     url: document.getElementById('edit-url').value.trim(),
   };
+
+  if (editImgFile) {
+    try { updates.image_url = await uploadImage(editImgFile, id); }
+    catch { showAlert('No se pudo subir la imagen.', 'error'); }
+  } else if (editRemoveImg) {
+    updates.image_url = null;
+  }
+
   try {
     await sb.from('activities').update(updates).eq('id', id);
   } catch {}
+
   const idx = allActivities.findIndex(a => a.id == id);
   if (idx > -1) allActivities[idx] = { ...allActivities[idx], ...updates };
   localStorage.setItem('activities', JSON.stringify(allActivities));
+  editImgFile = null;
+  editRemoveImg = false;
   closeEditModal();
   renderAll();
   showAlert('Actividad actualizada.', 'success');
