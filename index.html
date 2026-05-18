@@ -1094,7 +1094,7 @@ function clearCurrentImg() {
 
 async function uploadImage(file, actId) {
   const ext = file.name.split('.').pop();
-  const path = `${actId}.${ext}`;
+  const path = `public/${actId}.${ext}`;
   const { error } = await sb.storage.from(BUCKET).upload(path, file, { upsert: true });
   if (error) throw error;
   const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
